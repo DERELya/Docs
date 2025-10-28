@@ -1058,3 +1058,134 @@ list.forEach(n -> System.out.println(n));
 // Новый способ с использованием оператора двойного двоеточия ::
 list.forEach(System.out::println);
 ```
+##### Функциональные интерфейсы 
+Функциональным интерфейсом считается интерфейс который имеет один нереализованный метод.
+```java
+@FunctionalInterface
+public interface Converter<T, N> {
+   N convert(T t);
+}
+```
+Аннотация необходима чтобы сообщить компилятору, что данный интерфейс функциональный и должен содержать не более одного метода.
+```java
+@FunctionalInterface
+public interface Converter<T, N> {
+
+   N convert(T t);
+
+   static <T> boolean isNotNull(T t){
+       return t != null;
+   }
+
+   default void writeToConsole(T t) {
+       System.out.println("Текущий объект - " + t.toString());
+   }
+
+   boolean equals(Object obj);
+}
+```
+Этот интерфейс все еще функциональный, так как статичные методы, методы по умолчанию и методы наследуемые от класса Object разрешены.
+
+###### Базовые функциональные интерфейсы Java 8
+Predicate базовый функциональный интерфейс для проверки соблюдения условия.
+```java
+Predicate<Integer> isEven = x -> x % 2 == 0;
+System.out.println(isEven.test(4));
+//вывод в консоль "true"
+```
+
+Consumer функциональный интерфейс, который принимает объект T, совершает какие-то действия и ничего не возвращает.
+```java
+Consumer<Integer> consumer = i -> System.out.println(++i+"test");
+consumer.accept(1);
+//вывод в консоль "2test"
+```
+Supplier не принимает никаких аргументов, но возвращает объект типа T
+```java
+Supplier<Integer> random = () -> {
+            int value = list.get((int) (Math.random() * list.size()));
+            return value;
+};
+System.out.println(random.get());
+//вывод в консоль "4"
+```
+Function принимает аргумент типа T и приводит его к типу R и возвращает его 
+```java
+Function<String,Integer> converter = Integer::parseInt;
+int test=converter.apply("1");
+test++;
+System.out.println(test);
+System.out.println(converter.apply("123"));
+//вывод в консоль 2 и 123
+```
+UnaryOpertor интерфейс, который принимает объект типа T выполняет над ним операции и возвращает объект того же типа
+```java
+UnaryOperator<Integer> operator = x -> x * x;
+System.out.println(operator.apply(2));
+//вывод в консоль "4"
+```
+Это основные интерфейсы, остальные это усложненные их варианты
+###### Функциональные интерфейсы в Stream
+* Метод с predicate
+Для примера возьмемметод класса stream filterкоторый принимает predicate, а возвращает stream только с теми элементами, которые подходят под условие predicate.
+```java
+List<Integer> evenNumbers = Stream.of(1, 2, 3, 4, 5, 6, 7, 8)
+           .filter(x -> x % 2==0)
+           .collect(Collectors.toList());
+```
+В итоге список evenNumbers будет состоять из элементов {2, 4, 6, 8}.
+* Метод с Consumer
+одним из методов будет peek
+```java
+List<String> peopleGreetings = Stream.of("Elena", "John", "Alex", "Jim", "Sara")
+           .peek(x -> System.out.println("Hello " + x + " !!!"))
+           .collect(Collectors.toList());
+```
+вывод в консоль выглядит так:
+Hello Elena !!!
+Hello John !!!
+Hello Alex !!!
+Hello Jim !!!
+Hello Sara !!!
+* Метод с Supplier
+Примером будет generate, который генерирует бесконечную последовательность на основе переданного ему функционального интерфейса.
+
+```java
+ArrayList<String> nameList = new ArrayList<>();
+   nameList.add("Elena");
+   nameList.add("John");
+   nameList.add("Alex");
+   nameList.add("Jim");
+   nameList.add("Sara");
+
+   Stream.generate(() -> {
+       int value = (int) (Math.random() * nameList.size());
+       return nameList.get(value);
+   }).limit(5).forEach(System.out::println);
+```
+И вот какой мы получим вывод в консоль:
+John
+Elena
+Elena
+Elena
+Jim
+limit(5) необходим чтобы не было бесконечного вывода.
+* Метод с Function
+Типичный пример map который принимает элементы одного типа, что-то с ними делает и передает дальше,но уже могут быть элементы другого типа.
+```java
+List<Integer> values = Stream.of("32", "43", "74", "54", "3")
+        .map(x -> Integer.valueOf(x)).collect(Collectors.toList());
+```
+Мы получим список чисел, но уже в формате Integer.
+* Метод с UnaryOperator
+В качестве примера возьмем iterate, он схож с iterate, но принимает 2 аргумента: первый, с которого начинается генерация последовательности, а второй UnaryOperator который указывает принцип генерации новых значений.
+```java
+Stream.iterate(9, x -> x * x)
+           .limit(4)
+           .forEach(System.out::println);
+```
+Вывод в консоль будет выглядить:
+9
+81
+6561
+43046721
