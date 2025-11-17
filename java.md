@@ -1254,6 +1254,20 @@ Stream.iterate(9, x -> x * x)
 6561
 43046721
 
+map() создаёт поток массивов (Stream<String[]>)
+
+flatMap() превращает это в один плоский поток символов
+
+```java
+List<String> words = List.of("hello", "world");
+
+List<String> letters = words.stream()
+    .map(word -> word.split(""))           // Stream<String[]>
+    .flatMap(Arrays::stream)               // Stream<String>
+    .collect(Collectors.toList());
+
+System.out.println(letters); // [h, e, l, l, o, w, o, r, l, d]
+```
 ## 48. Аннотация
 Аннотация это специальная структура, которая начинается с "@", прикрепляется к классам, методам, переменным, парметрам и другим элементам.
 Примеры:
@@ -1278,7 +1292,12 @@ public @interface MyAnnotation {
 * Упрощают конфигурацию: вместо XML или JSON
 * Повышают читаемость: код становится самодокументируемым
 * Позволяют создавать гибкие фреймворки: например, Spring использует аннотации для внедрения зависимостей, REST-контроллеров и т.д.
-
+```java
+Method method = MyClass.class.getMethod("myMethod");
+MyAnnotation annotation = method.getAnnotation(MyAnnotation.class);
+System.out.println(annotation.value());
+```
+с помощью рефлексии получить доступ к аннотации и извлечь её значение.
 ## 49. Модули
 ## 50. Optionals
 # **Модуль 2**
