@@ -2324,9 +2324,367 @@ try (var files = Files.walk(tmpDirectory)) {
 ## 11.	Этапы сборки в Maven
 ## 12.	Где на локальной машине хранятся скачанные зависимости
 ## 13.	Многопоточность
+Многопоточность означает что несколько потоков выполняется в одном приложении.
+
+Зачем нужна многопоточность:
+* Эффективное использование ЦП
+* Лучший пользовательский опыт в плане реагирования и справедливости
+
+Состояние гоник это когда потоки имеют доступ к одному ресурсу и для конечного результата должен соблюдаться порядок в котором потоки выполняют операции
 ## 14. Способы создания потоков
+```java
+ Thread thread = new Thread(); //создание
+thread.start(); //запуск
+```
+Поток мы можем создать 2 путями 
+1. Создать класс который наследует Thread  и реализовать метод run() в котором будет логика которую должен выполнить поток
+```java
+public class MyThread extends Thread {
+
+    public void run(){
+       System.out.println("MyThread running");
+    }
+  }
+// а запускаем так
+MyThread myThread = new MyThread();
+myTread.start();
+```
+2. использование интерфейса Runnable(содержит один метод run())
+* Класс, который реализует интерфейс
+```java
+  public class MyRunnable implements Runnable {
+
+    public void run(){
+       System.out.println("MyRunnable running");
+    }
+  }
+```
+* Анонимный класс реализующий Runnable
+```java
+Runnable myRunnable =
+    new Runnable(){
+        public void run(){
+            System.out.println("Runnable running");
+        }
+    }
+```
+* Использование лямбды функции
+```java
+Runnable runnable =
+        () -> { System.out.println("Lambda Runnable running"); };
+```
+Запуск с использованием интерфейса
+```java
+Runnable runnable = new MyRunnable();
+
+Thread thread = new Thread(runnable);
+thread.start();
+```
+Преимущества создание с помощью Runnable чем threads:
+* Мы сможем наследовать от другого класса и реализовывать другие интерфейсы, а если наш класс уже наследуется от какого-либо класса мы не сможем наследовать thread
+* Разделение ответственности: если мы наследуем Thread мы говорим, что наш класс является потоком, а используя интерфейс мы говорим, что есть возможность использования потоком
+* Повторное использование: один экземпляр Runnable можно передать нескольким Thread
+* При работе с пулом потоков обычно используются экземпляры Runnable
+При создании потока мы можем задать ему группу,имя.
+```java
+Thread(ThreadGroup group, Runnable task, String name);
+```
+* group: группа потока. Если значение равно null, то в качестве группы устанавливается группа текущего потока.
+* task: объект Runnable, который собственно и определяет выполняемые в потоке действия. Если значение равно null, то вызывается метод run() этого потока.
+* name: имя создаваемого потока
+
+Чтобы остановить потоки можем использовать метод sleep()
+```java
+Thread.sleep(1000);
+```
+В параметрах мы передаем время в миллисекундах на которое хотим остановить поток
+
+Для полного завершения потока есть метод stop(), но он не гарантирует что поток завершиться, а также непонятно что со состоянием данных которые он обрабатывал.Поэтому мы должны сами подумать о завершении работы потока в логике
+```java
+public class MyRunnable implements Runnable {
+
+    private boolean doStop = false;
+
+    public synchronized void doStop() {
+        this.doStop = true;
+    }
+
+    private synchronized boolean keepRunning() {
+        return this.doStop == false;
+    }
+
+    @Override
+    public void run() {
+        while(keepRunning()) {
+            // keep doing what this thread should do.
+            System.out.println("Running");
+
+            try {
+                Thread.sleep(3L * 1000L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+}
+
+
+public static void main(String[] args) {
+    MyRunnable myRunnable = new MyRunnable();
+
+    Thread thread = new Thread(myRunnable);
+
+    thread.start();
+
+    try {
+        Thread.sleep(10L * 1000L);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+
+    myRunnable.doStop();
+}
+```
+В данном примере мы продумали что работа выполняется по метод keepRunning() возвращает true, поэтому когда мы вызовем метод doStop() который поменяет значение переменной, потоку нечего будет выполнять и он завершиться.
+
+Для того чтобы один поток ожидал завершение другого используем метод join()
+```java
+public static void main(String[] args) {
+           
+        System.out.println("Main thread started...");
+ 
+        var task = new MyTask();
+        var t = new Thread(task, "MyTask");
+        t.start();
+        try{
+            t.join();  // текущий поток Main thread ожидает завершения потока t
+        }
+        catch(InterruptedException ex){
+            System.out.println(ex.getMessage());
+        }
+        
+        System.out.println("Main thread finished...");
+    }
+```
+Главный поток будет ожидать дочерний поток
+
+Также можно задать время сколько мы даем времени для завершения потока
+```java
+t.join(500);//ожидаем не более 500 миллисекунд
+```
+
+Есть метод для прерывания потока interrupt(), он устанавливает для потока статус INTERRUPTED, с помощью метода isInterrupted() поток может периодически проверять, был ли он прерван, и, если прерван, завершать выполняемую работу:
+```java
+while (!Thread.currentThread().isInterrupted()){
+    // делаем некоторую работу
+}
+```
+Однако если поток заблокирован(методами sleep(), wait() и другими)  он не сможет проверить статус с помощью isInterrupted().Такая ситуация, например, возникает, когда метод interrupt() вызывается для потока, который блокируется. В этом случае блокирующий вызов(sleep()) завершается исключением InterruptedException.
+
+Чтобы избежать состояние гонки используется ключевое слово synchronized. Этот оператор предваряет блок кода или метод, который подлежит синхронизации.
+
+##### Synchronized блоки
+Это блок который предоставляет код к которому одномоментно имеет доступ только один поток
+```java
+synchronized (obj)
+{
+    // критическая секция
+}
+```
+Идет объект-заглушка: synchronized(obj), нельзя использовать как заглушку примитивные типы.
+
+Каждый объект в Java имеет ассоциированный с ним монитор. Когда выполнение кода доходит до оператора synchronized, монитор объекта блокируется, и на время его блокировки монопольный доступ к блоку кода имеет только один поток, который и произвел блокировку
+
+
+##### Синхронизированные методы
+Работают также как блоки
+```java
+synchronized void increment(){}
+```
+
+#### Пул потоков
+Это пул потоков которые можно использовать повторно, повторное использование потоков приводит к более высокой общей производительности. В Java уже есть реализованный пул потоков -ExecutorService, но также можно реализовать свой.
+
+##### ExecutorService
+Это механизм асинхронного выполнения способный выполнять одновременно задачи  в фоновом режиме.
+
+```java
+ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+executorService.execute(new Runnable() {
+    public void run() {
+        System.out.println("Асинхронная задача");
+    }
+});
+
+executorService.shutdown();
+```
+Пример создания:
+```java
+ExecutorService executorService1 = Executors.newSingleThreadExecutor();
+
+ExecutorService executorService2 = Executors.newFixedThreadPool(10);
+
+ExecutorService executorService3 = Executors.newScheduledThreadPool(10);
+```
+Создание ExecutorService, использующего виртуальные потоки
+```java
+ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+```
+Методы:
+##### execute(Runnable)
+Метод execute() принимает объект Runnable и выполняет его асинхронно. При необходимости получить результат выполненного действия невозможно. 
+```java
+ExecutorService executorService = Executors.newSingleThreadExecutor(); 
+
+executorService.execute(new Runnable() { 
+    public void run() { 
+        System.out.println("Асинхронная задача"); 
+    } 
+}); 
+
+executorService.shutdown();
+```
+
+##### submit(Runnable)
+Метод также принимает Runnable, но возвращает Future объект который можно использовать для  проверки завершения выполнения.
+```java
+Future future = executorService.submit(new Runnable() { 
+    public void run() { 
+        System.out.println("Асинхронная задача"); 
+    } 
+});
+future.get(); //возвращает null, если задача завершена корректно.
+```
+##### submit(Callable)
+Разница лишь в типе принимаемого объекта, также можно получить результат выполнения при помощи Future объекта
+```java
+Future future = executorService.submit(new Callable(){ 
+    public Object call() throws Exception { 
+        System.out.println("Асинхронный вызываемый"); 
+        return "Вызываемый результат"; 
+    } 
+}); 
+
+System.out.println("future.get() = " + future.get());
+```
+##### invokeAny()
+Принимает коллекцию Callable объектов или подинтерфейсов, возвращает результат одного из Callable объектов. Нет гарантии  какой из Callable вернет результат.Если один экземпляр Callable завершается, так что возвращается результат из invokeAny(), то остальные экземпляры Callable отменяются.Если одна из задач завершается (или выдает исключение), остальные Callable отменяются.
+```java
+ExecutorService executorService = Executors.newSingleThreadExecutor(); 
+
+Set<Callable<String>> callables = new HashSet<Callable<String>>(); 
+
+callables.add(new Callable<String>() { 
+    public String call() throws Exception { 
+        return "Task 1"; 
+    } 
+}); 
+callables.add(new Callable<String>() { 
+    public String call() throws Exception { 
+        return "Task 2"; 
+    } 
+}); 
+callables.add(new Callable<String>() { 
+    public String call() throws Exception { 
+        return "Task 3"; 
+    } 
+}); 
+
+String result = executorService.invokeAny(callables); 
+
+System.out.println("result = " + result); 
+
+executorService.shutdown();
+```
+
+Будет вывод "Task 1" или "Task 2", 
+
+##### invokeAll()
+Вызывает все объекты Callable и возвращает список Future, с помощью которого можно получить результат каждого метода Callable. Нет способа отличить один Future от другого
+```java
+ExecutorService executorService = Executors.newSingleThreadExecutor(); 
+
+Set<Callable<String>> callables = new HashSet<Callable<String>>(); 
+
+callables.add(new Callable<String>() { 
+    public String call() выдает исключение { 
+        return "Задача 1"; 
+    } 
+}); 
+callables.add(new Callable<String>() { 
+    public String call() выдает исключение { 
+        return "Задача 2"; 
+    } 
+}); 
+callables.add(new Callable<String>() { 
+    public String call() выдает исключение { 
+        return "Задача 3"; 
+    } 
+}); 
+
+List<Future<String>> futures = executorService.invokeAll(callables); 
+
+for(Future<String> future : futures){ 
+    System.out.println("future.get = " + future.get()); 
+} 
+
+executorService.shutdown();
+```
+
+##### Callable
+
+Интерфейс Callable может быть выполнен только ExecutorService, также как Runnable содержит один метод call().
+
+Основное различие между Runnable run()методом и Callable call()методом заключается в том, что call()метод может вернуть значение Objectиз вызова метода. Другое отличие между методом call()и run()методом заключается в том, что метод call()может генерировать исключение, а метод — run() нет
+
+##### cansel()
+Можно отменить задачу если ее выполнение еще не началось при помощи метода cansel()
+```java
+future.cancel();
+```
+
+##### Завершение работы ExecutorService
+Активные потоки внутри executorService предотвращают завершение работы JVM
+
+###### shutdown()
+Метод не завершит работу, но больше не будет принимать новые задачи и как только потоки завершат текущие задачи он завершится
+```java
+executorService.shutdown();
+```
+###### shutdownNow()
+этот метод попытается остановить все выполняемые задачи и пропустить все  отправленные, но необработанные задачи, возможно они остановятся, а возможно будут выполняться до конца
+```java
+executorService.shutdownNow();
+```
+###### awaitTermination()
+блокирует вызывающий поток до завершения ExecutorService или пока не истечет заданное время ожидания. Метод awaitTermination()обычно вызывается после вызова shutdown()или shutdownNow().
+```java
+executorService.shutdown();
+
+executorService.awaitTermination(10_000L, TimeUnit.MILLISECONDS );
+```
 ## 15. Виды состояния потоков
+* NEW: поток создан, но еще не запущен
+* RUNNABLE: поток выполняется
+* BLOCKED: поток заблокирован в ожидании блокировки монитора
+* WAITING: поток неопределенно долго ожидает, пока другой поток выполнит определенное действие
+* TIMED_WAITING: поток, ожидающий выполнения действия другим потоком в течение заданного времени
+* TERMINATED: поток завершил выполнение
 ## 16. Ключевое слово volatile
+Ключевое слово volatile предлагает механизм синхронизации доступа к полю экземпляра без блокировки. При выполнении потоки могут кэшировать значения переменных, а компилятор и процессор — переупорядочивать инструкции для оптимизации.
+
+Ключевое слово volatile предоставляет две ключевые гарантии:
+* Гарантия Видимости (Visibility)
+благодаря этому JVM получает инструкцию "Никогда не кэшировать эту переменную на уровне потока"
+
+  * Запись в volatile-переменную всегда производится немедленно в основную память.
+  * Чтение volatile-переменной всегда происходит напрямую из основной памяти
+* Гарантия упорядочивания
+предотвращает упорядочивания которое могут производить компиляторы и процессоры для повышения производительности
+    * Запись в volatile-переменную происходит после всех предыдущих чтений и записей в коде.
+    * Чтение volatile-переменной происходит до всех последующих чтений и записей
 ## 17. Внедрение зависимостей(Dependency injection)
 DI — это, по сути, шаблон проектирования, позволяющий нам устранять жёстко заданные зависимости между объектами. Вместо того чтобы объект создавал свои зависимости или искал их, эти зависимости предоставляются ему.
 
