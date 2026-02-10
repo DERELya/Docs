@@ -244,7 +244,24 @@ private static String uniqSubstring(String str){
         return str.substring(bestIndex,bestIndex+maxLength);
     }
 ```
-3. 
+3. Задача: Минимальный подмассив с заданной суммой
+   Дан массив положительных чисел nums и число target. Тебе нужно найти минимальную длину подмассива, сумма элементов которого больше или равна target. Если такого нет — верни 0.
+```java
+private static int minSubArray(int[] array,int target){
+        int minLen=Integer.MAX_VALUE;//инициализируем переменную
+        int left=0;//левый указатель
+        int sum=0;//сумма элементов подмассива
+        for (int right=0;right<array.length;right++){//двигаем правый указатель и считаем сумму
+            sum+=array[right];
+            while(sum>=target){//если сумма подходит под условием проверяем минимум ли это и двигаем левый указатель пока соблюдается условие
+                minLen = Math.min(minLen, right - left + 1);
+                sum -= array[left];
+                left++;
+            }
+        }
+        return (minLen == Integer.MAX_VALUE) ? 0 : minLen; //если наша переменная не изменилась, то вернем ноль, значит не нашли подмассив, если она отличается от начальной вернем ее
+    }
+```
 ## 8. Матрицы
 
 ## 9. Интервалы
